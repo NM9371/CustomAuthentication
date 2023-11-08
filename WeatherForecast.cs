@@ -1,4 +1,4 @@
-namespace CustomAuthentication
+namespace Authentication
 {
     public class WeatherForecast
     {
