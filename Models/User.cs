@@ -9,6 +9,7 @@ namespace Models
         public Guid Id { get; set; }
         public string Login { get; set; }
         public string Password { get; set; }
+        public byte[] PasswordHash { get; set; }
     }
 
     public class UserDTO

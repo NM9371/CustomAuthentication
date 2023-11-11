@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Models;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace CustomAuthentication.Controllers
 {
@@ -30,7 +32,9 @@ namespace CustomAuthentication.Controllers
             {
                 return NotFound("Пользователь с таким логином не найден");
             }
-            if (authorizeUserAs.Password != user.Password)
+
+            byte[] passwordHash = SHA256.HashData(Encoding.UTF8.GetBytes(user.Password));
+            if (!authorizeUserAs.PasswordHash.SequenceEqual(passwordHash))
             {
                 return BadRequest("Неверный пароль");
             }
@@ -56,8 +60,9 @@ namespace CustomAuthentication.Controllers
             db.Users.Add(new User
                 {
                     Login = user.Login,
-                    Password = user.Password
-                });
+                    Password = user.Password,
+                    PasswordHash = SHA256.HashData(Encoding.UTF8.GetBytes(user.Password))
+            });
             await db.SaveChangesAsync();
             return Ok(user);
         }
@@ -76,17 +81,19 @@ namespace CustomAuthentication.Controllers
                 return NotFound();
             }
 
+            user.PasswordHash = SHA256.HashData(Encoding.UTF8.GetBytes(user.Password));
+
             db.Update(user);
             await db.SaveChangesAsync();
             return Ok(user);
         }
 
         [HttpDelete("RemoveUser")]
-        public async Task<ActionResult<User>> Delete(User user)
+        public async Task<ActionResult<User>> Delete(Guid userId)
         {
             using var db = new ApplicationContext();
 
-            User? removingUser = db.Users.FirstOrDefault(x => x.Id == user.Id);
+            User? removingUser = db.Users.FirstOrDefault(x => x.Id == userId);
             if (removingUser == null)
             {
                 return NotFound();
