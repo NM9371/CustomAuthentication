@@ -10,6 +10,8 @@ namespace Models
         public string Login { get; set; }
         public string Password { get; set; }
         public byte[] PasswordHash { get; set; }
+        public byte[] HashSalt { get; set; }
+
     }
 
     public class UserDTO

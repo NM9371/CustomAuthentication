@@ -33,8 +33,8 @@ namespace CustomAuthentication.Controllers
                 return NotFound("Пользователь с таким логином не найден");
             }
 
-            byte[] passwordHash = SHA256.HashData(Encoding.UTF8.GetBytes(user.Password));
-            if (!authorizeUserAs.PasswordHash.SequenceEqual(passwordHash))
+            byte[] passwordSaltedHash = SHA256.HashData(authorizeUserAs.HashSalt.Concat(Encoding.UTF8.GetBytes(user.Password)).ToArray());
+            if (!authorizeUserAs.PasswordHash.SequenceEqual(passwordSaltedHash))
             {
                 return BadRequest("Неверный пароль");
             }
@@ -57,11 +57,18 @@ namespace CustomAuthentication.Controllers
                 return BadRequest("Пользователь с таким логином уже зарегистрирован");
             }
 
+            var salt = new byte[32];
+            using (var random = new RNGCryptoServiceProvider())
+            {
+                random.GetNonZeroBytes(salt);
+            }
+
             db.Users.Add(new User
                 {
                     Login = user.Login,
                     Password = user.Password,
-                    PasswordHash = SHA256.HashData(Encoding.UTF8.GetBytes(user.Password))
+                    PasswordHash = SHA256.HashData(salt.Concat(Encoding.UTF8.GetBytes(user.Password)).ToArray()),
+                    HashSalt = salt
             });
             await db.SaveChangesAsync();
             return Ok(user);
@@ -81,7 +88,14 @@ namespace CustomAuthentication.Controllers
                 return NotFound();
             }
 
-            user.PasswordHash = SHA256.HashData(Encoding.UTF8.GetBytes(user.Password));
+            var salt = new byte[32];
+            using (var random = new RNGCryptoServiceProvider())
+            {
+                random.GetNonZeroBytes(salt);
+            }
+
+            user.HashSalt = salt;
+            user.PasswordHash = SHA256.HashData(user.HashSalt.Concat(Encoding.UTF8.GetBytes(user.Password)).ToArray());
 
             db.Update(user);
             await db.SaveChangesAsync();
