@@ -1,9 +1,7 @@
+using CustomAuthentication.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Models;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace CustomAuthentication.Controllers
 {
@@ -27,13 +25,13 @@ namespace CustomAuthentication.Controllers
                 return BadRequest();
             }
             using var db = new ApplicationContext();
-            User? authorizeUserAs = db.Users.FirstOrDefault(x => x.Login == user.Login);
+            User? authorizeUserAs = await db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Login == user.Login);
             if (authorizeUserAs == null)
             {
                 return NotFound("Пользователь с таким логином не найден");
             }
-
-            byte[] passwordSaltedHash = SHA256.HashData(authorizeUserAs.HashSalt.Concat(Encoding.UTF8.GetBytes(user.Password)).ToArray());
+           
+            byte[] passwordSaltedHash = Hasher.GenerateHash(authorizeUserAs.HashSalt, user.Password);
             if (!authorizeUserAs.PasswordHash.SequenceEqual(passwordSaltedHash))
             {
                 return BadRequest("Неверный пароль");
@@ -52,22 +50,18 @@ namespace CustomAuthentication.Controllers
 
             using var db = new ApplicationContext();
 
-            if (db.Users.Any(x => x.Login == user.Login))
+            if (await db.Users.AsNoTracking().AnyAsync(x => x.Login == user.Login))
             {
                 return BadRequest("Пользователь с таким логином уже зарегистрирован");
             }
 
-            var salt = new byte[32];
-            using (var random = new RNGCryptoServiceProvider())
-            {
-                random.GetNonZeroBytes(salt);
-            }
+            byte[] salt = Hasher.GenerateSalt();
 
             db.Users.Add(new User
                 {
                     Login = user.Login,
                     Password = user.Password,
-                    PasswordHash = SHA256.HashData(salt.Concat(Encoding.UTF8.GetBytes(user.Password)).ToArray()),
+                    PasswordHash = Hasher.GenerateHash(salt, user.Password),
                     HashSalt = salt
             });
             await db.SaveChangesAsync();
@@ -83,19 +77,13 @@ namespace CustomAuthentication.Controllers
             }
             using var db = new ApplicationContext();
 
-            if (!db.Users.Any(x => x.Id == user.Id))
+            if (!await db.Users.AsNoTracking().AnyAsync((x => x.Id == user.Id)))
             {
                 return NotFound();
             }
 
-            var salt = new byte[32];
-            using (var random = new RNGCryptoServiceProvider())
-            {
-                random.GetNonZeroBytes(salt);
-            }
-
-            user.HashSalt = salt;
-            user.PasswordHash = SHA256.HashData(user.HashSalt.Concat(Encoding.UTF8.GetBytes(user.Password)).ToArray());
+            user.HashSalt = Hasher.GenerateSalt();
+            user.PasswordHash = Hasher.GenerateHash(user.HashSalt, user.Password);
 
             db.Update(user);
             await db.SaveChangesAsync();
@@ -107,14 +95,14 @@ namespace CustomAuthentication.Controllers
         {
             using var db = new ApplicationContext();
 
-            User? removingUser = db.Users.FirstOrDefault(x => x.Id == userId);
-            if (removingUser == null)
+            User? userToRemove = await db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId);
+            if (userToRemove == null)
             {
                 return NotFound();
             }
-            db.Users.Remove(removingUser);
+            db.Users.Remove(userToRemove);
             await db.SaveChangesAsync();
-            return Ok(removingUser);
+            return Ok(userToRemove);
         }
     }
 }
