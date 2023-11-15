@@ -11,9 +11,11 @@ namespace CustomAuthentication.Controllers
     {
 
         private readonly ILogger<AuthenticationController> _logger;
+        private readonly IHasher _hasher;
 
-        public AuthenticationController(ILogger<AuthenticationController> logger)
+        public AuthenticationController(ILogger<AuthenticationController> logger, IHasher hasher)
         {
+            _hasher = hasher;
             _logger = logger;
         }
 
@@ -28,13 +30,12 @@ namespace CustomAuthentication.Controllers
             User? authorizeUserAs = await db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Login == user.Login);
             if (authorizeUserAs == null)
             {
-                return NotFound("Пользователь с таким логином не найден");
+                return NotFound("User with this login is not found");
             }
            
-            byte[] passwordSaltedHash = Hasher.GenerateHash(authorizeUserAs.HashSalt, user.Password);
-            if (!authorizeUserAs.PasswordHash.SequenceEqual(passwordSaltedHash))
+            if(!_hasher.VerifyHash(user.Password, authorizeUserAs.HashSalt, authorizeUserAs.PasswordHash))
             {
-                return BadRequest("Неверный пароль");
+                return BadRequest("Wrong password");
             }
 
             return Ok(authorizeUserAs);
@@ -52,16 +53,14 @@ namespace CustomAuthentication.Controllers
 
             if (await db.Users.AsNoTracking().AnyAsync(x => x.Login == user.Login))
             {
-                return BadRequest("Пользователь с таким логином уже зарегистрирован");
+                return BadRequest("User with this login already exist");
             }
-
-            byte[] salt = Hasher.GenerateSalt();
 
             db.Users.Add(new User
                 {
                     Login = user.Login,
                     Password = user.Password,
-                    PasswordHash = Hasher.GenerateHash(salt, user.Password),
+                    PasswordHash = _hasher.GenerateHash(user.Password, out byte[] salt),
                     HashSalt = salt
             });
             await db.SaveChangesAsync();
@@ -82,8 +81,8 @@ namespace CustomAuthentication.Controllers
                 return NotFound();
             }
 
-            user.HashSalt = Hasher.GenerateSalt();
-            user.PasswordHash = Hasher.GenerateHash(user.HashSalt, user.Password);
+            user.PasswordHash = _hasher.GenerateHash(user.Password, out byte[] salt);
+            user.HashSalt = salt;
 
             db.Update(user);
             await db.SaveChangesAsync();
