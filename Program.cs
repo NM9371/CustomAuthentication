@@ -10,6 +10,8 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddTransient<IHasher, SHA256Hasher>();
+builder.Services.AddTransient<ITokenHandler, JWTHandler>();
+builder.Services.AddSingleton<IKey, RSA256Key>();
 
 var app = builder.Build();
 

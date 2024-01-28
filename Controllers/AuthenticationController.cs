@@ -1,4 +1,5 @@
 using CustomAuthentication.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Models;
@@ -12,11 +13,15 @@ namespace CustomAuthentication.Controllers
 
         private readonly ILogger<AuthenticationController> _logger;
         private readonly IHasher _hasher;
+        private readonly ITokenHandler _tokenWorker;
+        private readonly IKey _key;
 
-        public AuthenticationController(ILogger<AuthenticationController> logger, IHasher hasher)
+        public AuthenticationController(ILogger<AuthenticationController> logger, IHasher hasher, ITokenHandler tokenWorker, IKey key)
         {
             _hasher = hasher;
             _logger = logger;
+            _tokenWorker = tokenWorker;
+            _key = key;
         }
 
         [HttpPost("ValidateCredentials")]
@@ -32,13 +37,15 @@ namespace CustomAuthentication.Controllers
             {
                 return NotFound("User with this login is not found");
             }
-           
-            if(!_hasher.VerifyHash(user.Password, authorizeUserAs.HashSalt, authorizeUserAs.PasswordHash))
+
+            if (!_hasher.VerifyHash(user.Password, authorizeUserAs.HashSalt, authorizeUserAs.PasswordHash))
             {
                 return BadRequest("Wrong password");
             }
 
-            return Ok(authorizeUserAs);
+            var token = _tokenWorker.GenerateToken();
+
+            return Ok(token);
         }
 
         [HttpPost("Registration")]
@@ -62,25 +69,33 @@ namespace CustomAuthentication.Controllers
                     Password = user.Password,
                     PasswordHash = _hasher.GenerateHash(user.Password, out byte[] salt),
                     HashSalt = salt
-            });
+                }
+            );
             await db.SaveChangesAsync();
             return Ok(user);
         }
 
         [HttpPut("ChangeSettings")]
-        public async Task<ActionResult<User>> ChangeSettings(User user)
+        public async Task<ActionResult<User>> ChangeSettings(UserPasswordUpdateModel userChanges)
         {
-            if (user == null)
+            if (userChanges == null)
             {
                 return BadRequest();
             }
-            using var db = new ApplicationContext();
 
-            if (!await db.Users.AsNoTracking().AnyAsync((x => x.Id == user.Id)))
+            string? tokenVerifyResult = _tokenWorker.VerifyToken(Request.Headers.Authorization);
+            if (tokenVerifyResult != null) return BadRequest(tokenVerifyResult);
+
+            using var db = new ApplicationContext();
+            User? user = await db.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userChanges.Id);
+
+            if (user == null)
             {
                 return NotFound();
             }
 
+            user.Login = userChanges.Login;
+            user.Password = userChanges.Password;
             user.PasswordHash = _hasher.GenerateHash(user.Password, out byte[] salt);
             user.HashSalt = salt;
 
