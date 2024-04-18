@@ -12,7 +12,7 @@ namespace CustomAuthentication
         }
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
-            optionsBuilder.UseNpgsql("Host=localhost;Port=5432;Database=authentication;Username=postgres;Password=321");
+            optionsBuilder.UseNpgsql("Host=authDB;Port=5432;Database=postgres;Username=postgres;Password=Master1234");
         }
     }
 }

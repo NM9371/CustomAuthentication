@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CustomAuthentication.Migrations
 {
     [DbContext(typeof(ApplicationContext))]
-    [Migration("20231112000806_hashSalt")]
-    partial class hashSalt
+    [Migration("20240418071109_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

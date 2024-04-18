@@ -1,0 +1,26 @@
+version: "1"
+services:
+    web-api:
+        build: .
+        image: authentication-service
+        container_name: authApp
+        depends_on:
+            - db
+        ports:
+            - '32770:443'
+            - '32771:80'
+        restart: unless-stopped
+
+    db:
+        image: postgres
+        container_name: authDB
+        environment:
+            - 'POSTGRES_PASSWORD=Master1234'
+        volumes:
+            - "C:/AuthenticatrionService/:/var/lib/postgresql/data"
+        restart: unless-stopped
+
+networks:
+    default:
+        name: authNet
+        driver: bridge
